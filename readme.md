@@ -1,5 +1,5 @@
 # MCM-Classifier
-This is a MCM-based naive Bayes' classifier. It is a very simple classifier that uses fitted Minimally Complex Models to classify data. More information on MCMs and the way they're fitted can be found [here](https://github.com/clelidm/MinCompSpin), [here](https://github.com/clelidm/MinCompSpin_Greedy) and [here](https://github.com/ebokai/MinCompSpin_SimulatedAnnealing).
+This is an experimental MCM-based naive Bayes' classifier. It is a very simple classifier that uses fitted Minimally Complex Models to classify data. More information on MCMs and the way they're fitted can be found [here](https://github.com/clelidm/MinCompSpin), [here](https://github.com/clelidm/MinCompSpin_Greedy) and [here](https://github.com/ebokai/MinCompSpin_SimulatedAnnealing).
 
 Sample data from the [MNIST dataset](http://yann.lecun.com/exdb/mnist/) is given inside the `INPUT` folder. As MCMs only supports binary datasets with 128 or less features, the data was pre-processed by cutting of the edges coarse graining the images into 11x11 binary matrices, where 1 means a given pixel is lit, and 0 means it isn't. The [simulated annealing](https://github.com/ebokai/MinCompSpin_SimulatedAnnealing) method has been applied to this dataset and using the resulting MCMs results in an accuracy of approximately 90%.
 
