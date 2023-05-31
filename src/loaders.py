@@ -15,6 +15,20 @@ def load_data(path: str) -> np.ndarray:
     
     return data
 
+def load_labels(path: str) -> np.ndarray:
+    """
+    Loads labels from a given path.
+
+    Args:
+        path (str): Pathname of the file containing the labels
+
+    Returns:
+        np.ndarray: 1-D array containing the labels of test data
+    """
+    labels = np.loadtxt(path, dtype=str)
+    
+    return labels
+
 def load_mcm(path: str) -> np.ndarray:
     """
     Loads an MCM from a given path.
