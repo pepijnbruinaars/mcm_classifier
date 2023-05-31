@@ -25,7 +25,7 @@ def plot_confusion_matrix(confusion_matrix, title="Confusion matrix", cmap="Blue
 
 
 def main():
-    print("MCM-BASED CLASSIFIER")
+    print("{:-^50}".format("  MCM-Classifier  "))
 
     test_data = load_data("INPUT/data/test-images-unlabeled-all-uniform.txt").astype(
         int
@@ -38,16 +38,17 @@ def main():
     )
 
     # Step 2: Evaluate
-    predicted_classes, probs, acc = classifier.evaluate(test_data, test_labels)
+    classifier.evaluate(test_data, test_labels)
+
+    # Step 3: Save classification report and other stats
     if classifier.stats == None:
         raise Exception("Classifier not evaluated")
 
-    print(f"Accuracy: {classifier.stats['accuracy']}")
+    classifier.save_classification_report(test_labels)
 
     # Plot confusion matrix
     plt.figure()
     plot_confusion_matrix(classifier.stats["confusion_matrix"])
-    plt.show()
     plt.savefig("OUTPUT/confusion_matrix.png")
 
 

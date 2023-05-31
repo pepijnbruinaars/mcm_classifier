@@ -97,6 +97,62 @@ class MCM_Classifier:
 
         return samples
 
+    def get_classification_report(self, labels: np.ndarray) -> dict:
+        if self.predicted_classes is None:
+            raise ValueError("Classifier not evaluated yet")
+
+        # Get the confusion matrix
+        confusion_matrix = self.__get_confusion_matrix(labels)
+
+        # Calculate the precision, recall and f1-score for each category
+        precision = np.zeros(self.n_categories)
+        recall = np.zeros(self.n_categories)
+        f1_score = np.zeros(self.n_categories)
+
+        for i in range(self.n_categories):
+            # Calculate precision
+            precision[i] = confusion_matrix[i, i] / np.sum(confusion_matrix[:, i])
+
+            # Calculate recall
+            recall[i] = confusion_matrix[i, i] / np.sum(confusion_matrix[i, :])
+
+            # Calculate f1-score
+            f1_score[i] = 2 * precision[i] * recall[i] / (precision[i] + recall[i])
+
+        # Calculate the average precision, recall and f1-score
+        avg_precision = np.mean(precision)
+        avg_recall = np.mean(recall)
+        avg_f1_score = np.mean(f1_score)
+
+        # Calculate the accuracy
+        accuracy = np.sum(np.diag(confusion_matrix)) / np.sum(confusion_matrix)
+
+        # Construct the classification report
+        classification_report = {
+            "precision": precision,
+            "recall": recall,
+            "f1_score": f1_score,
+            "avg_precision": avg_precision,
+            "avg_recall": avg_recall,
+            "avg_f1_score": avg_f1_score,
+            "accuracy": accuracy,
+        }
+
+        return classification_report
+
+    def save_classification_report(
+        self, labels: np.ndarray, path: str = "OUTPUT"
+    ) -> None:
+        """
+        Saves the classification report to a file
+        """
+        if self.predicted_classes is None:
+            raise ValueError("Classifier not evaluated yet")
+
+        # Get the classification report
+        classification_report = self.get_classification_report(labels)
+        self.__save_classification_report(classification_report, path)
+
     # ----- Private methods -----
     def __construct_P(self) -> tuple:
         """
@@ -240,3 +296,24 @@ class MCM_Classifier:
             confusion_matrix[label, self.predicted_classes[i]] += 1
 
         return confusion_matrix
+
+    def __save_classification_report(self, classification_report: dict, path: str):
+        # Save the classification report
+        with open(f"{path}/classification_report.txt", "w") as f:
+            f.write("Classification report:\n")
+            f.write(f"Accuracy: {classification_report['accuracy']}\n")
+            f.write(f"Average precision: {classification_report['avg_precision']}\n")
+            f.write(f"Average recall: {classification_report['avg_recall']}\n")
+            f.write(f"Average f1-score: {classification_report['avg_f1_score']}\n")
+            f.write("\n")
+            f.write("Precision:\n")
+            for i in range(self.n_categories):
+                f.write(f"{i}: {classification_report['precision'][i]}\n")
+            f.write("\n")
+            f.write("Recall:\n")
+            for i in range(self.n_categories):
+                f.write(f"{i}: {classification_report['recall'][i]}\n")
+            f.write("\n")
+            f.write("F1-score:\n")
+            for i in range(self.n_categories):
+                f.write(f"{i}: {classification_report['f1_score'][i]}\n")
