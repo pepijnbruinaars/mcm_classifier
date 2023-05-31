@@ -1,5 +1,6 @@
 import numpy as np
 from .loaders import load_data, load_mcm
+from .helpers import print_box
 
 
 class MCM_Classifier:
@@ -48,7 +49,7 @@ class MCM_Classifier:
             f"Predicted class: {predicted_class} with probability {probs[predicted_class]}"
         )
 
-    def evaluate(self, data: np.ndarray, labels: np.ndarray) -> None:
+    def evaluate(self, data: np.ndarray, labels: np.ndarray) -> tuple:
         """
         Evaluates the performance of the MCM-based classifier.
 
@@ -56,13 +57,21 @@ class MCM_Classifier:
             data (np.ndarray): The data to be classified
             labels (np.ndarray): The labels of the data
         """
+        print_box("Evaluating classifier...")
+
         # ----- Calculate probability of sample belonging to each category -----
+        print_box("1. Calculating state probabilities...")
         probs = np.array([self.__get_probs(state) for state in data])
         predicted_classes = np.argmax(probs, axis=1)
 
         # ----- Calculate accuracy -----
+        print_box("2. Calculating accuracy...")
+
         correct_predictions = predicted_classes == labels
         accuracy = np.sum(correct_predictions) / len(labels)
+
+        # ----- Save stats -----
+        print_box("3. Saving stats...")
 
         self.predicted_classes = predicted_classes
         self.probs = probs
@@ -71,6 +80,8 @@ class MCM_Classifier:
             "correct_predictions": correct_predictions,
             "confusion_matrix": self.__get_confusion_matrix(labels),
         }
+
+        print_box("Done!")
 
         return predicted_classes, probs, accuracy
 
@@ -102,13 +113,15 @@ class MCM_Classifier:
         """
         MCM = []
         P = []
+
+        print_box("Constructing probability distributions...")
+
         # Construct probability distributions for each category
         for k in range(self.n_categories):
             # Add MCM to list
             try:
                 mcm = load_mcm(f"INPUT/MCMs/{self.__mcm_filename_format.format(k)}")
                 MCM.append(mcm)
-                print(f"Loaded MCM for category {k}...")
             except:
                 # Throw error if MCM file not found
                 raise FileNotFoundError(f"Could not find MCM file for category {k}")
@@ -116,7 +129,6 @@ class MCM_Classifier:
             # Load data
             try:
                 data = load_data(f"INPUT/data/{self.__data_filename_format.format(k)}")
-                print(f"Loaded data for category {k}...")
             except:
                 # Throw error if data file not found
                 raise FileNotFoundError(f"Could not find data file for category {k}")
@@ -146,7 +158,7 @@ class MCM_Classifier:
 
         return self.P, self.MCM
 
-    def __sample_MCM(self, cat_index: int) -> None:
+    def __sample_MCM(self, cat_index: int) -> np.ndarray:
         """
         Sample a state from some MCM.
 
@@ -203,7 +215,7 @@ class MCM_Classifier:
 
         return prob
 
-    def __get_probs(self, state):
+    def __get_probs(self, state: np.ndarray) -> list:
         """
         Get the probabilites for a single state for each category, in order
         """
@@ -216,12 +228,15 @@ class MCM_Classifier:
 
         return all_probs
 
-    def __get_confusion_matrix(self, test_labels):
+    def __get_confusion_matrix(self, test_labels: np.ndarray):
         """
         Get the confusion matrix for the classifier
         """
+        if self.predicted_classes is None:
+            raise ValueError("Classifier not evaluated yet")
+
         confusion_matrix = np.zeros((self.n_categories, self.n_categories))
-        for i in range(len(test_labels)):
-            confusion_matrix[test_labels[i], self.predicted_classes[i]] += 1
+        for i, label in enumerate(test_labels):
+            confusion_matrix[label, self.predicted_classes[i]] += 1
 
         return confusion_matrix
