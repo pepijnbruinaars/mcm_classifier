@@ -36,20 +36,22 @@ def main():
     classifier = MCM_Classifier(
         n_categories, n_variables, mcm_filename_format, data_filename_format
     )
+    
+    # Step 2: Train
+    # classifier.fit(greedy=True, max_iter=1000000, max_no_improvement=100000)
+    classifier.init()
 
-    # Step 2: Evaluate
-    classifier.evaluate(test_data, test_labels)
+    # Step 3: Evaluate
+    predicted_classes, probs = classifier.evaluate(test_data, test_labels)
 
-    # Step 3: Save classification report and other stats
-    if classifier.stats == None:
-        raise Exception("Classifier not evaluated")
-
-    classifier.save_classification_report(test_labels)
+    # Step 4: Save classification report and other stats
+    report = classifier.get_classification_report(test_labels)
+    classifier.save_classification_report("classification_report_1", test_labels)
 
     # Plot confusion matrix
-    plt.figure()
-    plot_confusion_matrix(classifier.stats["confusion_matrix"])
-    plt.savefig("OUTPUT/confusion_matrix.png")
+    # plt.figure()
+    # plot_confusion_matrix(classifier.stats["confusion_matrix"])
+    # plt.savefig("OUTPUT/confusion_matrix.png")
 
 
 if __name__ == "__main__":

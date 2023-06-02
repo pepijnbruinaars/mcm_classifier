@@ -1,4 +1,9 @@
 import numpy as np
+import subprocess
+import os
+import platform
+
+# MCM_classifier helper imports
 from .loaders import load_data, load_mcm
 from .helpers import print_box
 
@@ -32,7 +37,7 @@ class MCM_Classifier:
         self.__data_filename_format = data_filename_format
 
         # Construct probability distributions and MCMs for each category
-        self.P, self.MCM = self.__construct_P()
+        self.P, self.MCM = ([], [])
         self.predicted_classes = None
         self.probs = None
         self.stats = None
@@ -58,6 +63,10 @@ class MCM_Classifier:
             labels (np.ndarray): The labels of the data
         """
         print_box("Evaluating classifier...")
+        if len(data) != len(labels):
+            raise ValueError("Data and labels must have the same length")
+        if len(self.P) == 0 or len(self.MCM) == 0:
+            raise ValueError("Classifier not initialized yet. If you have already selected MCMs, try running the init method first. If not, try running the fit method first.")
 
         # ----- Calculate probability of sample belonging to each category -----
         print_box("1. Calculating state probabilities...")
@@ -83,7 +92,7 @@ class MCM_Classifier:
 
         print_box("Done!")
 
-        return predicted_classes, probs, accuracy
+        return predicted_classes, probs
 
     def sample_MCM(self, n_samples: int):
         """
@@ -141,7 +150,7 @@ class MCM_Classifier:
         return classification_report
 
     def save_classification_report(
-        self, labels: np.ndarray, path: str = "OUTPUT"
+        self, name: str, labels: np.ndarray, path: str = "OUTPUT"
     ) -> None:
         """
         Saves the classification report to a file
@@ -151,7 +160,59 @@ class MCM_Classifier:
 
         # Get the classification report
         classification_report = self.get_classification_report(labels)
-        self.__save_classification_report(classification_report, path)
+        self.__save_classification_report(name, classification_report, path)
+
+    def init(self):
+        """
+        Initialize the classifier
+        """
+        self.__construct_P()
+
+    def fit(self,
+            data_path: str = "INPUT/data",
+            greedy: bool = False,
+            max_iter: int = 100000,
+            max_no_improvement: int = 10000,
+            ) -> None:
+        """
+        Fit the classifier using the data given in the data_path folder.
+        It uses the MinCompSpin_SimulatedAnnealing algorithm to find the MCMs.
+
+        Args:
+            data_path (str): Path to the data folder
+            greedy (bool): Whether to use the greedy algorithm after SA
+            max_iter (int): Maximum number of iterations for the SA algorithm
+            max_no_improvement (int): Maximum number of iterations without improvement for the SA algorithm
+        """
+        if not self.__validate_input_data():
+            raise ValueError("Input data folder file count does not match number of categories")
+        # Loop over each file in the data folder
+        folder = os.fsencode(data_path)
+        sorted_folder = sorted(os.listdir(folder))
+        
+        processes = []
+        for file in sorted_folder:
+            filename = os.fsdecode(file)
+            if filename.endswith(".dat"):
+                # Remove the .dat extension
+                filename = filename[:-4]
+                file = "mcm_classifier/input/data/" + filename
+                saa_args = self.__construct_args(file, greedy, max_iter, max_no_improvement)
+                # Run the MinCompSpin_SimulatedAnnealing algorithm
+                print(f"Running MinCompSpin_SimulatedAnnealing on {filename}...")
+                p = subprocess.Popen(saa_args, stdout=subprocess.PIPE)
+                processes.append(p)
+                print("Done!")
+            else:
+                continue
+            
+        # Wait for all processes to finish
+        for p in processes:
+            p.wait()
+            
+        # Construct probability distributions and MCMs for each category
+        self.__construct_P()
+        
 
     # ----- Private methods -----
     def __construct_P(self) -> tuple:
@@ -171,6 +232,9 @@ class MCM_Classifier:
         P = []
 
         print_box("Constructing probability distributions...")
+
+        if not self.__validate_input_comms():
+            raise ValueError("Input data folder file count does not match number of categories. Did you run the fit method?.")
 
         # Construct probability distributions for each category
         for k in range(self.n_categories):
@@ -214,6 +278,80 @@ class MCM_Classifier:
 
         return self.P, self.MCM
 
+    def __construct_args(self,
+                        filename: str,
+                        greedy: bool,
+                        max_iter: int,
+                        max_no_improvement: int
+                        ) -> tuple:
+        """Generates the arguments for the MinCompSpin_SimulatedAnnealing algorithm
+
+        Args:
+            operating_system (str): _description_
+            data_path (str): _description_
+            greedy (bool): _description_
+            max_iter (int): _description_
+            max_no_improvement (int): _description_
+
+        Returns:
+            list: The list with all the arguments, to be used in the subprocess call
+        """
+        operating_system = platform.system()
+        
+        g = "-g" if greedy else ""
+        
+        sa_file = "../MinCompSpin_SimulatedAnnealing/bin/saa.exe" if operating_system == "Windows" else "../MinCompSpin_SimulatedAnnealing/bin/saa.out"
+        saa_args = [sa_file,
+                    str(self.n_variables),
+                    '-i',
+                    filename,
+                    g,
+                    '--max',
+                    str(max_iter),
+                    '--stop',
+                    str(max_no_improvement)
+        ]
+        
+        # Filter out empty strings
+        saa_args = tuple(filter(None, saa_args))
+        return saa_args
+    
+    def __validate_input_data(self, data_path: str = "INPUT/data",) -> bool:
+        """
+            Validates the input community folder. Checks if the number of files in the folder
+            is equal to the number of categories.
+        """
+        folder = os.fsencode(data_path)
+        sorted_folder = sorted(os.listdir(folder))
+        
+        n_matching_files = 0
+        for file in sorted_folder:
+            filename = os.fsdecode(file)
+            print(filename)
+            print(self.__data_filename_format.format(n_matching_files))
+            if filename == self.__data_filename_format.format(n_matching_files):
+                n_matching_files += 1
+
+        if n_matching_files == self.n_categories: return True
+        return False 
+    
+    def __validate_input_comms(self, comms_path: str = "INPUT/MCMs",) -> bool:
+        """
+            Validates the input community folder. Checks if the number of files in the folder
+            is equal to the number of categories.
+        """
+        folder = os.fsencode(comms_path)
+        sorted_folder = sorted(os.listdir(folder))
+        
+        n_matching_files = 0
+        for i, file in enumerate(sorted_folder):
+            filename = os.fsdecode(file)
+            if filename == self.__mcm_filename_format.format(i):
+                n_matching_files += 1
+
+        if n_matching_files == self.n_categories: return True
+        return False           
+    
     def __sample_MCM(self, cat_index: int) -> np.ndarray:
         """
         Sample a state from some MCM.
@@ -297,9 +435,9 @@ class MCM_Classifier:
 
         return confusion_matrix
 
-    def __save_classification_report(self, classification_report: dict, path: str):
+    def __save_classification_report(self, name: str, classification_report: dict, path: str):
         # Save the classification report
-        with open(f"{path}/classification_report.txt", "w") as f:
+        with open(f"{path}/{name}.txt", "w") as f:
             f.write("Classification report:\n")
             f.write(f"Accuracy: {classification_report['accuracy']}\n")
             f.write(f"Average precision: {classification_report['avg_precision']}\n")
