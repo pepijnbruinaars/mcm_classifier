@@ -25,11 +25,13 @@ class MCM_Classifier:
         data_filename_format: str,
     ) -> None:
         """
-        Init function, constructs the classifier.
+        The MCM-classifier.
 
         Args:
             - n_categories (int): The number of categories in the dataset
             - n_variables (int): The number of variables in the dataset
+            - mcm_filename_format (str): The format of the MCM filenames
+            - data_filename_format (str): The format of the data filenames
         """
         self.n_categories = n_categories
         self.n_variables = n_variables
@@ -37,22 +39,75 @@ class MCM_Classifier:
         self.__data_filename_format = data_filename_format
 
         # Construct probability distributions and MCMs for each category
-        self.P, self.MCM = ([], [])
+        self.__P, self.__MCM = ([], [])
         self.predicted_classes = None
         self.probs = None
         self.stats = None
 
     # ----- Public methods -----
-    def classify(self, state: np.ndarray = np.array([])) -> None:
+    def init(self):
+        """
+        Initializes the classifier if the MCMs have already been selected.
+        """
+        self.__construct_P()
+
+    def fit(self,
+            data_path: str = "INPUT/data",
+            greedy: bool = False,
+            max_iter: int = 100000,
+            max_no_improvement: int = 10000,
+            ) -> None:
+        """
+        Fit the classifier using the data given in the data_path folder.
+        It uses the MinCompSpin_SimulatedAnnealing algorithm to find the MCMs.
+
+        Args:
+            - data_path (str): Path to the data folder
+            - greedy (bool): Whether to use the greedy algorithm after SA
+            - max_iter (int): Maximum number of iterations for the SA algorithm
+            - max_no_improvement (int): Maximum number of iterations without improvement for the SA algorithm
+        """
+        if not self.__validate_input_data():
+            raise ValueError("Input data folder file count does not match number of categories")
+        # Loop over each file in the data folder
+        folder = os.fsencode(data_path)
+        sorted_folder = sorted(os.listdir(folder))
+        
+        processes = []
+        for file in sorted_folder:
+            filename = os.fsdecode(file)
+            if filename.endswith(".dat"):
+                # Remove the .dat extension
+                filename = filename[:-4]
+                file = "mcm_classifier/input/data/" + filename
+                saa_args = self.__construct_args(file, greedy, max_iter, max_no_improvement)
+                # Run the MinCompSpin_SimulatedAnnealing algorithm
+                print(f"Running MinCompSpin_SimulatedAnnealing on {filename}...")
+                p = subprocess.Popen(saa_args, stdout=subprocess.PIPE)
+                processes.append(p)
+                print("Done!")
+            else:
+                continue
+            
+        # Wait for all processes to finish
+        for p in processes:
+            p.wait()
+            
+        # Construct probability distributions and MCMs for each category
+        self.__construct_P()
+   
+    def classify(self, state: np.ndarray = np.array([])) -> tuple:
         """
         Classify a single state using the MCM-based classifier.
+        
+        Args:
+            state (np.ndarray): The state to be classified
         """
         # ----- Calculate probability of sample belonging to each category -----
         probs = self.__get_probs(state)
         predicted_class = np.argmax(probs)
-        print(
-            f"Predicted class: {predicted_class} with probability {probs[predicted_class]}"
-        )
+         
+        return predicted_class, probs
 
     def evaluate(self, data: np.ndarray, labels: np.ndarray) -> tuple:
         """
@@ -61,11 +116,14 @@ class MCM_Classifier:
         Args:
             data (np.ndarray): The data to be classified
             labels (np.ndarray): The labels of the data
+            
+        Returns:
+            tuple: The predicted classes (for each state) and the probabilities for each category (for each state)
         """
         print_box("Evaluating classifier...")
         if len(data) != len(labels):
             raise ValueError("Data and labels must have the same length")
-        if len(self.P) == 0 or len(self.MCM) == 0:
+        if len(self.__P) == 0 or len(self.__MCM) == 0:
             raise ValueError("Classifier not initialized yet. If you have already selected MCMs, try running the init method first. If not, try running the fit method first.")
 
         # ----- Calculate probability of sample belonging to each category -----
@@ -97,6 +155,12 @@ class MCM_Classifier:
     def sample_MCM(self, n_samples: int):
         """
         Samples n_samples from the MCMs randomly
+        
+        Args:
+            n_samples (int): The number of samples to be generated
+        
+        Returns:
+            list: A list of the generated samples
         """
         samples = []
 
@@ -107,6 +171,18 @@ class MCM_Classifier:
         return samples
 
     def get_classification_report(self, labels: np.ndarray) -> dict:
+        """
+        Get the classification report for the classifier
+
+        Args:
+            labels (np.ndarray): The labels of the data
+
+        Raises:
+            ValueError: If the classifier has not been evaluated yet
+
+        Returns:
+            dict: The classification report
+        """
         if self.predicted_classes is None:
             raise ValueError("Classifier not evaluated yet")
 
@@ -150,69 +226,22 @@ class MCM_Classifier:
         return classification_report
 
     def save_classification_report(
-        self, name: str, labels: np.ndarray, path: str = "OUTPUT"
+        self, labels: np.ndarray, name: str = "classification_report", path: str = "OUTPUT"
     ) -> None:
         """
         Saves the classification report to a file
+        
+        Args:
+            name (str): The name of the file
+            labels (np.ndarray): The labels of the data
+            path (str): The path to the folder where the file should be saved
         """
         if self.predicted_classes is None:
             raise ValueError("Classifier not evaluated yet")
 
         # Get the classification report
         classification_report = self.get_classification_report(labels)
-        self.__save_classification_report(name, classification_report, path)
-
-    def init(self):
-        """
-        Initialize the classifier
-        """
-        self.__construct_P()
-
-    def fit(self,
-            data_path: str = "INPUT/data",
-            greedy: bool = False,
-            max_iter: int = 100000,
-            max_no_improvement: int = 10000,
-            ) -> None:
-        """
-        Fit the classifier using the data given in the data_path folder.
-        It uses the MinCompSpin_SimulatedAnnealing algorithm to find the MCMs.
-
-        Args:
-            data_path (str): Path to the data folder
-            greedy (bool): Whether to use the greedy algorithm after SA
-            max_iter (int): Maximum number of iterations for the SA algorithm
-            max_no_improvement (int): Maximum number of iterations without improvement for the SA algorithm
-        """
-        if not self.__validate_input_data():
-            raise ValueError("Input data folder file count does not match number of categories")
-        # Loop over each file in the data folder
-        folder = os.fsencode(data_path)
-        sorted_folder = sorted(os.listdir(folder))
-        
-        processes = []
-        for file in sorted_folder:
-            filename = os.fsdecode(file)
-            if filename.endswith(".dat"):
-                # Remove the .dat extension
-                filename = filename[:-4]
-                file = "mcm_classifier/input/data/" + filename
-                saa_args = self.__construct_args(file, greedy, max_iter, max_no_improvement)
-                # Run the MinCompSpin_SimulatedAnnealing algorithm
-                print(f"Running MinCompSpin_SimulatedAnnealing on {filename}...")
-                p = subprocess.Popen(saa_args, stdout=subprocess.PIPE)
-                processes.append(p)
-                print("Done!")
-            else:
-                continue
-            
-        # Wait for all processes to finish
-        for p in processes:
-            p.wait()
-            
-        # Construct probability distributions and MCMs for each category
-        self.__construct_P()
-        
+        self.__save_classification_report(name, classification_report, path)     
 
     # ----- Private methods -----
     def __construct_P(self) -> tuple:
@@ -273,10 +302,10 @@ class MCM_Classifier:
 
             P.append(pk)
 
-        self.P = P
-        self.MCM = MCM
+        self.__P = P
+        self.__MCM = MCM
 
-        return self.P, self.MCM
+        return self.__P, self.__MCM
 
     def __construct_args(self,
                         filename: str,
@@ -284,7 +313,8 @@ class MCM_Classifier:
                         max_iter: int,
                         max_no_improvement: int
                         ) -> tuple:
-        """Generates the arguments for the MinCompSpin_SimulatedAnnealing algorithm
+        """
+        Generates the arguments for the MinCompSpin_SimulatedAnnealing algorithm
 
         Args:
             operating_system (str): _description_
@@ -361,8 +391,8 @@ class MCM_Classifier:
         """
         # get a sample for each digit
 
-        pk = self.P[cat_index]  # probability distribution for each digit
-        mcm = self.MCM[cat_index]  # communities for each digit
+        pk = self.__P[cat_index]  # probability distribution for each digit
+        mcm = self.__MCM[cat_index]  # communities for each digit
 
         sampled_state = np.zeros(self.n_variables)
 
@@ -392,8 +422,8 @@ class MCM_Classifier:
         """
 
         prob = 1
-        MCM = self.MCM[cat_index]
-        P = self.P[cat_index]
+        MCM = self.__MCM[cat_index]
+        P = self.__P[cat_index]
 
         # Loop through each ICC and calculate the probability of the state
         for j, icc in enumerate(MCM):
@@ -412,6 +442,9 @@ class MCM_Classifier:
     def __get_probs(self, state: np.ndarray) -> list:
         """
         Get the probabilites for a single state for each category, in order
+        
+        Args:
+            state (np.ndarray): The state to calculate the probability of
         """
 
         all_probs = []
@@ -425,6 +458,15 @@ class MCM_Classifier:
     def __get_confusion_matrix(self, test_labels: np.ndarray):
         """
         Get the confusion matrix for the classifier
+        
+        Args:
+            test_labels (np.ndarray): The labels of the test data
+        
+        Raises:
+            ValueError: If the classifier has not been evaluated yet
+        
+        Returns:
+            np.ndarray: The confusion matrix
         """
         if self.predicted_classes is None:
             raise ValueError("Classifier not evaluated yet")
@@ -436,7 +478,14 @@ class MCM_Classifier:
         return confusion_matrix
 
     def __save_classification_report(self, name: str, classification_report: dict, path: str):
-        # Save the classification report
+        """
+        Saves the classification report to a file
+
+        Args:
+            name (str): The desired name of the file
+            classification_report (dict): The classification report
+            path (str): The path to the folder where the file should be saved
+        """
         with open(f"{path}/{name}.txt", "w") as f:
             f.write("Classification report:\n")
             f.write(f"Accuracy: {classification_report['accuracy']}\n")
