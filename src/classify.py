@@ -5,7 +5,7 @@ import platform
 
 # MCM_classifier helper imports
 from .loaders import load_data, load_mcm
-from .helpers import print_box
+from .helpers import generate_bootstrap_samples, print_box
 
 
 class MCM_Classifier:
@@ -43,7 +43,7 @@ class MCM_Classifier:
         self.predicted_classes = None
         self.probs = None
         self.stats = None
-
+        
     # ----- Public methods -----
     def init(self):
         """
@@ -56,6 +56,7 @@ class MCM_Classifier:
             greedy: bool = False,
             max_iter: int = 100000,
             max_no_improvement: int = 10000,
+            n_samples: int = 0,
             ) -> None:
         """
         Fit the classifier using the data given in the data_path folder.
@@ -66,32 +67,37 @@ class MCM_Classifier:
             - greedy (bool): Whether to use the greedy algorithm after SA
             - max_iter (int): Maximum number of iterations for the SA algorithm
             - max_no_improvement (int): Maximum number of iterations without improvement for the SA algorithm
+            - n_samples (int): The number of samples to be used from the data folder. If 0, all samples are used.
         """
-        if not self.__validate_input_data():
-            raise ValueError("Input data folder file count does not match number of categories")
+        # if not self.__validate_input_data():
+        #     raise ValueError("Input data folder file count does not match number of categories")
         # Loop over each file in the data folder
         folder = os.fsencode(data_path)
         sorted_folder = sorted(os.listdir(folder))
         
-        processes = []
         for file in sorted_folder:
             filename = os.fsdecode(file)
             if filename.endswith(".dat"):
                 # Remove the .dat extension
+                if (n_samples == 0):
+                    n_samples = len(load_data(data_path + "/" + filename))
+                else:
+                    # create new folder for bootstrap samples
+                    bootstrap_name = filename[:-4] + "_bootstrap"
+                    os.makedirs("INPUT/data/bootstrap/", exist_ok=True)
+                    generate_bootstrap_samples(load_data("INPUT/data/" + filename), bootstrap_name, n_samples)
+                    filename = "bootstrap/" + bootstrap_name + ".dat"
+
+    
                 filename = filename[:-4]
                 file = "mcm_classifier/input/data/" + filename
                 saa_args = self.__construct_args(file, greedy, max_iter, max_no_improvement)
                 # Run the MinCompSpin_SimulatedAnnealing algorithm
                 print(f"Running MinCompSpin_SimulatedAnnealing on {filename}...")
-                p = subprocess.Popen(saa_args, stdout=subprocess.PIPE)
-                processes.append(p)
+                p = subprocess.run(saa_args, stdout=subprocess.PIPE)
                 print("Done!")
             else:
                 continue
-            
-        # Wait for all processes to finish
-        for p in processes:
-            p.wait()
             
         # Construct probability distributions and MCMs for each category
         self.__construct_P()
@@ -262,8 +268,8 @@ class MCM_Classifier:
 
         print_box("Constructing probability distributions...")
 
-        if not self.__validate_input_comms():
-            raise ValueError("Input data folder file count does not match number of categories. Did you run the fit method?.")
+        # if not self.__validate_input_comms():
+            # raise ValueError("Input data folder file count does not match number of categories. Did you run the fit method?.")
 
         # Construct probability distributions for each category
         for k in range(self.n_categories):
@@ -504,3 +510,9 @@ class MCM_Classifier:
             f.write("F1-score:\n")
             for i in range(self.n_categories):
                 f.write(f"{i}: {classification_report['f1_score'][i]}\n")
+
+    def __str__(self) -> str:
+        """
+        String representation of the classifier
+        """
+        return f"MCM_Classifier(n_categories={self.n_categories}, n_variables={self.n_variables})"

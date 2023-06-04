@@ -7,8 +7,8 @@ from src.plot import plot_confusion_matrix
 # Customizable environment variables
 n_categories = 10  # Number of categories to be classified
 n_variables = 121  # Number of variables in the dataset
-mcm_filename_format = "train-images-unlabeled-{}_comms.dat"
-data_filename_format = "train-images-unlabeled-{}.dat"
+mcm_filename_format = "bootstrap/train-images-unlabeled-{}_bootstrap_comms.dat"
+data_filename_format = "bootstrap/train-images-unlabeled-{}_bootstrap.dat"
 
 def main():
     print("{:-^50}".format("  MCM-Classifier  "))
@@ -24,7 +24,7 @@ def main():
     )
 
     # Step 2: Train
-    # classifier.fit(greedy=True, max_iter=100000, max_no_improvement=10000)
+    # classifier.fit(greedy=True, n_samples=100, max_iter=100000, max_no_improvement=10000)
     classifier.init()
 
     # Step 3: Evaluate
@@ -34,10 +34,13 @@ def main():
     report = classifier.get_classification_report(test_labels)
     classifier.save_classification_report(test_labels)
 
+    if (classifier.stats == None):
+        raise Exception("Classifier stats not found. Did you forget to call evaluate()?")
+
     # Plot confusion matrix
-    # plt.figure()
-    # plot_confusion_matrix(classifier.stats["confusion_matrix"], n_categories)
-    # plt.savefig("OUTPUT/confusion_matrix.png")
+    plt.figure()
+    plot_confusion_matrix(classifier.stats["confusion_matrix"], n_categories)
+    plt.savefig("OUTPUT/confusion_matrix.png")
 
 
 if __name__ == "__main__":
