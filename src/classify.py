@@ -79,16 +79,13 @@ class MCM_Classifier:
             filename = os.fsdecode(file)
             if filename.endswith(".dat"):
                 # Remove the .dat extension
-                if (n_samples == 0):
-                    n_samples = len(load_data(data_path + "/" + filename))
-                else:
+                if (n_samples != 0):
                     # create new folder for bootstrap samples
                     bootstrap_name = filename[:-4] + "_bootstrap"
                     os.makedirs("INPUT/data/bootstrap/", exist_ok=True)
                     generate_bootstrap_samples(load_data("INPUT/data/" + filename), bootstrap_name, n_samples)
-                    filename = "bootstrap/" + bootstrap_name + ".dat"
-
-    
+                    filename = "bootstrap/" + bootstrap_name + ".dat"                    
+                
                 filename = filename[:-4]
                 file = "mcm_classifier/input/data/" + filename
                 saa_args = self.__construct_args(file, greedy, max_iter, max_no_improvement)
