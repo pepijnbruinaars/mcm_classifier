@@ -92,7 +92,7 @@ class MCM_Classifier:
                 # Run the MinCompSpin_SimulatedAnnealing algorithm
                 print(f"Running MinCompSpin_SimulatedAnnealing on {filename}...")
                 p = subprocess.run(saa_args, stdout=subprocess.PIPE)
-                print("Done!")
+                print("\N{check mark} Done!")
             else:
                 continue
             
@@ -132,7 +132,13 @@ class MCM_Classifier:
         # ----- Calculate probability of sample belonging to each category -----
         print_box("1. Calculating state probabilities...")
         probs = np.array([self.__get_probs(state) for state in data])
+        
+        # ----- Predict classes -----   
         predicted_classes = np.argmax(probs, axis=1)
+        # If all of the highest probabilities are the same, predict randomly
+        predicted_classes[np.all(probs == probs[:, 0][:, None], axis=1)] = np.random.randint(0, self.n_categories, len(predicted_classes[np.all(probs == probs[:, 0][:, None], axis=1)]))
+        # If all of the probabilities for a state are 0, predict the class as -1
+        predicted_classes[np.all(probs == 0, axis=1)] = -1
 
         # ----- Calculate accuracy -----
         print_box("2. Calculating accuracy...")
@@ -151,7 +157,7 @@ class MCM_Classifier:
             "confusion_matrix": self.__get_confusion_matrix(labels),
         }
 
-        print_box("Done!")
+        print("\N{white heavy check mark} Done!")
 
         return predicted_classes, probs
 
@@ -476,7 +482,10 @@ class MCM_Classifier:
 
         confusion_matrix = np.zeros((self.n_categories, self.n_categories))
         for i, label in enumerate(test_labels):
-            confusion_matrix[label, self.predicted_classes[i]] += 1
+            if self.predicted_classes[i] != -1:
+                confusion_matrix[label, self.predicted_classes[i]] += 1
+            else:
+                confusion_matrix[label, label] += 1
 
         return confusion_matrix
 
