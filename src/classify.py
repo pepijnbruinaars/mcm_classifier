@@ -76,7 +76,9 @@ class MCM_Classifier:
         # Loop over each file in the data folder
         folder = os.fsencode(data_path)
         sorted_folder = sorted(os.listdir(folder))
-        jobs = []
+        pool = mp.Pool(mp.cpu_count())
+        tasks = []
+        saa_args_list = []
 
         for file in sorted_folder:
             filename = os.fsdecode(file)
@@ -85,7 +87,7 @@ class MCM_Classifier:
                 filename = filename[:-4]
                 if (n_samples != 0):
                     # create new folder for bootstrap samples
-                    # if no _bootsrap in filename, add it
+                    # if no _bootstrap in filename, add it
                     if "_bootstrap" not in filename:
                         bootstrap_name = filename + "_bootstrap"
                     else:
@@ -103,28 +105,30 @@ class MCM_Classifier:
                 
                 file = "mcm_classifier/input/data/" + filename
                 saa_args = self.__construct_args(file, greedy, max_iter, max_no_improvement)
-                proc = mp.Process(target=run_saa, args=(self, saa_args))
-                jobs.append(proc)
-                proc.start()
-                # Run the MinCompSpin_SimulatedAnnealing algorithm
-                print(f"Running MinCompSpin_SimulatedAnnealing on {filename}...")
-                try:
-                    p = subprocess.call(saa_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                except KeyboardInterrupt:
-                    raise KeyboardInterrupt("MinCompSpin_SimulatedAnnealing interrupted")
-                except SystemExit:
-                    raise SystemExit("MinCompSpin_SimulatedAnnealing failed")
-                except Exception:
-                    raise Exception("MinCompSpin_SimulatedAnnealing failed")
+                saa_args_list.append(saa_args)
                 
-                print("\N{check mark} Done!")
+                # Run the MinCompSpin_SimulatedAnnealing algorithm
+                # try:
+                #     p = subprocess.Popen(saa_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # except KeyboardInterrupt:
+                #     raise KeyboardInterrupt("MinCompSpin_SimulatedAnnealing interrupted")
+                # except SystemExit:
+                #     raise SystemExit("MinCompSpin_SimulatedAnnealing failed")
+                # except Exception:
+                #     raise Exception("MinCompSpin_SimulatedAnnealing failed")
+                
+                # print("\N{check mark} Done!")
             else:
                 continue
-            
-        # Synchronize processes
-        for proc in jobs:
-            proc.join()
-            
+
+        # Run the MinCompSpin_SimulatedAnnealing algorithm
+        print_box("Running MinCompSpin_SimulatedAnnealing...")
+        # Run the SA algorithm in parallel for each set of arguments
+        p = pool.map(run_saa, saa_args_list)
+        pool.close()
+        
+        print("\N{check mark} Done!")
+        
         # Construct probability distributions and MCMs for each category
         self.__construct_P()
    
@@ -560,7 +564,7 @@ class MCM_Classifier:
         """
         return f"MCM_Classifier(n_categories={self.n_categories}, n_variables={self.n_variables})"
     
-def run_saa(self, saa_args: tuple) -> int:
+def run_saa(saa_args: tuple):
         """Runs the MinCompSpin_SimulatedAnnealing algorithm
 
         Args:

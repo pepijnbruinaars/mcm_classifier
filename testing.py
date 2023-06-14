@@ -27,10 +27,11 @@ def main():
         # dtype=float
         )
     
+    bootstrap_count = 5
     sample_sizes = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 0]
-    progress_bar = tqdm(total=len(sample_sizes) * 5)
+    progress_bar = tqdm(total=len(sample_sizes) * bootstrap_count)
     for sample_size in sample_sizes:
-        for i in range(5):
+        for i in range(bootstrap_count):
             print("Sample size: {}".format(sample_size))
             # Step 1: Initialize classifier
             classifier = MCM_Classifier(
@@ -40,7 +41,7 @@ def main():
             # Step 2: Train
             # Time the fitting
             start_time = time.perf_counter()
-            classifier.fit(greedy=True, n_samples=sample_size, max_iter=1000000, max_no_improvement=100000)
+            classifier.fit(n_samples=sample_size, max_iter=100000, max_no_improvement=10000)
             # classifier.init()
             end_time = time.perf_counter()
         
@@ -97,12 +98,11 @@ def main():
                 "f1-8": report["f1_score"][8],
                 "f1-9": report["f1_score"][9],
             }), ignore_index=True) # type: ignore
-            # print true acc, non-rej acc, class qual
             print(resulting_data)
             progress_bar.update(1)
             
     # Save resulting_data to csv
-    resulting_data.to_csv("output/data/bootstrap_results_greedy.csv", index=False, sep=";")
+    resulting_data.to_csv(f"output/data/bootstrap_results_sa_efault.csv", index=False, sep=";")
     
 
     
