@@ -1,7 +1,9 @@
 import numpy as np
+import pandas as pd
 import subprocess
 import os
 import platform
+import multiprocessing as mp
 
 # MCM_classifier helper imports
 from .loaders import load_data, load_mcm
@@ -74,27 +76,54 @@ class MCM_Classifier:
         # Loop over each file in the data folder
         folder = os.fsencode(data_path)
         sorted_folder = sorted(os.listdir(folder))
-        
+        jobs = []
+
         for file in sorted_folder:
             filename = os.fsdecode(file)
-            if filename.endswith(".dat"):
+            if not filename.endswith("_bootstrap.dat") and filename.endswith(".dat"):
                 # Remove the .dat extension
+                filename = filename[:-4]
                 if (n_samples != 0):
                     # create new folder for bootstrap samples
-                    bootstrap_name = filename[:-4] + "_bootstrap"
-                    os.makedirs("INPUT/data/bootstrap/", exist_ok=True)
-                    generate_bootstrap_samples(load_data("INPUT/data/" + filename), bootstrap_name, n_samples)
-                    filename = "bootstrap/" + bootstrap_name + ".dat"                    
+                    # if no _bootsrap in filename, add it
+                    if "_bootstrap" not in filename:
+                        bootstrap_name = filename + "_bootstrap"
+                    else:
+                        bootstrap_name = filename
+                    # os.makedirs("INPUT/data/bootstrap/", exist_ok=True)
+                    generate_bootstrap_samples(load_data("INPUT/data/" + filename + ".dat"), bootstrap_name, n_samples)
+                    filename = bootstrap_name
+                else:
+                    if "_bootstrap" not in filename:
+                        bootstrap_name = filename + "_bootstrap"
+                    else: 
+                        bootstrap_name = filename
+                    generate_bootstrap_samples(load_data("INPUT/data/" + filename + ".dat"), bootstrap_name, len(load_data("INPUT/data/" + filename + ".dat")))                        
+                    filename = bootstrap_name
                 
-                filename = filename[:-4]
                 file = "mcm_classifier/input/data/" + filename
                 saa_args = self.__construct_args(file, greedy, max_iter, max_no_improvement)
+                proc = mp.Process(target=run_saa, args=(self, saa_args))
+                jobs.append(proc)
+                proc.start()
                 # Run the MinCompSpin_SimulatedAnnealing algorithm
                 print(f"Running MinCompSpin_SimulatedAnnealing on {filename}...")
-                p = subprocess.run(saa_args, stdout=subprocess.PIPE)
+                try:
+                    p = subprocess.call(saa_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                except KeyboardInterrupt:
+                    raise KeyboardInterrupt("MinCompSpin_SimulatedAnnealing interrupted")
+                except SystemExit:
+                    raise SystemExit("MinCompSpin_SimulatedAnnealing failed")
+                except Exception:
+                    raise Exception("MinCompSpin_SimulatedAnnealing failed")
+                
                 print("\N{check mark} Done!")
             else:
                 continue
+            
+        # Synchronize processes
+        for proc in jobs:
+            proc.join()
             
         # Construct probability distributions and MCMs for each category
         self.__construct_P()
@@ -132,14 +161,14 @@ class MCM_Classifier:
         # ----- Calculate probability of sample belonging to each category -----
         print_box("1. Calculating state probabilities...")
         probs = np.array([self.__get_probs(state) for state in data])
-        
+
         # ----- Predict classes -----   
         predicted_classes = np.argmax(probs, axis=1)
-        # If all of the highest probabilities are the same, predict randomly
-        predicted_classes[np.all(probs == probs[:, 0][:, None], axis=1)] = np.random.randint(0, self.n_categories, len(predicted_classes[np.all(probs == probs[:, 0][:, None], axis=1)]))
+        
         # If all of the probabilities for a state are 0, predict the class as -1
         predicted_classes[np.all(probs == 0, axis=1)] = -1
-
+        # Print how many states were not classified
+        print("Number of datapoints for which the classifier didn't have any probability for any category: {}".format(len(predicted_classes[predicted_classes == -1])))
         # ----- Calculate accuracy -----
         print_box("2. Calculating accuracy...")
 
@@ -197,7 +226,9 @@ class MCM_Classifier:
 
         # Get the confusion matrix
         confusion_matrix = self.__get_confusion_matrix(labels)
-
+        
+        correct_predictions = self.predicted_classes == labels
+        accuracy = np.sum(correct_predictions) / len(labels)
         # Calculate the precision, recall and f1-score for each category
         precision = np.zeros(self.n_categories)
         recall = np.zeros(self.n_categories)
@@ -219,8 +250,11 @@ class MCM_Classifier:
         avg_f1_score = np.mean(f1_score)
 
         # Calculate the accuracy
-        accuracy = np.sum(np.diag(confusion_matrix)) / np.sum(confusion_matrix)
-
+        non_rejected_accuracy = np.sum(correct_predictions) / (len(labels) - np.sum(self.predicted_classes == -1))
+        # Include the number of rejected samples in the accuracy calculation
+        true_accuracy = accuracy
+        rejected = self.predicted_classes == -1
+        classification_quality = np.sum(correct_predictions[~rejected]) / (np.sum(correct_predictions[~rejected]) + np.sum(rejected))
         # Construct the classification report
         classification_report = {
             "precision": precision,
@@ -229,7 +263,10 @@ class MCM_Classifier:
             "avg_precision": avg_precision,
             "avg_recall": avg_recall,
             "avg_f1_score": avg_f1_score,
-            "accuracy": accuracy,
+            "true_accuracy": true_accuracy,
+            "rejected": len(self.predicted_classes[rejected]),
+            "non_rejected_accuracy": non_rejected_accuracy,
+            "classification_quality": classification_quality,
         }
 
         return classification_report
@@ -500,7 +537,7 @@ class MCM_Classifier:
         """
         with open(f"{path}/{name}.txt", "w") as f:
             f.write("Classification report:\n")
-            f.write(f"Accuracy: {classification_report['accuracy']}\n")
+            f.write(f"Accuracy: {classification_report['true_accuracy']}\n")
             f.write(f"Average precision: {classification_report['avg_precision']}\n")
             f.write(f"Average recall: {classification_report['avg_recall']}\n")
             f.write(f"Average f1-score: {classification_report['avg_f1_score']}\n")
@@ -522,3 +559,23 @@ class MCM_Classifier:
         String representation of the classifier
         """
         return f"MCM_Classifier(n_categories={self.n_categories}, n_variables={self.n_variables})"
+    
+def run_saa(self, saa_args: tuple) -> int:
+        """Runs the MinCompSpin_SimulatedAnnealing algorithm
+
+        Args:
+            saa_args (tuple): The arguments for the algorithm
+            
+        Returns:
+            int: The return code of the algorithm
+        """
+        try:
+            p = subprocess.call(saa_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except KeyboardInterrupt:
+            raise KeyboardInterrupt("MinCompSpin_SimulatedAnnealing interrupted")
+        except SystemExit:
+            raise SystemExit("MinCompSpin_SimulatedAnnealing failed")
+        except Exception:
+            raise Exception("MinCompSpin_SimulatedAnnealing failed")
+        
+        return p

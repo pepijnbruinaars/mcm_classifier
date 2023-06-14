@@ -13,10 +13,10 @@ data_filename_format = "train-images-unlabeled-{}.dat"
 def main():
     print("{:-^50}".format("  MCM-Classifier  "))
 
-    test_data = load_data("INPUT/data/test-images-unlabeled-all-uniform.txt").astype(
+    test_data = load_data("input/data/test-images-unlabeled-all-uniform.txt").astype(
         int
     )
-    test_labels = load_labels("INPUT/data/test-labels-uniform.txt").astype(int)
+    test_labels = load_labels("input/data/test-labels-uniform.txt").astype(int)
 
     # Step 1: Initialize classifier
     classifier = MCM_Classifier(

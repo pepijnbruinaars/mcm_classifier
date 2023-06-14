@@ -21,7 +21,7 @@ def generate_bootstrap_samples(data: np.ndarray, bootstrap_name: str, n_samples:
     samples.append(all_zeros)
     samples.append(all_ones)
     np.savetxt(
-        "INPUT/data/bootstrap/{}.dat".format(bootstrap_name),
+        "INPUT/data/{}.dat".format(bootstrap_name),
         samples,
         fmt="%d",
         delimiter="",
