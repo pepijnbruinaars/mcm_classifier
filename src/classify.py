@@ -76,8 +76,7 @@ class MCM_Classifier:
         # Loop over each file in the data folder
         folder = os.fsencode(data_path)
         sorted_folder = sorted(os.listdir(folder))
-        pool = mp.Pool(mp.cpu_count())
-        tasks = []
+        processes = []
         saa_args_list = []
 
         for file in sorted_folder:
@@ -123,9 +122,20 @@ class MCM_Classifier:
 
         # Run the MinCompSpin_SimulatedAnnealing algorithm
         print_box("Running MinCompSpin_SimulatedAnnealing...")
-        # Run the SA algorithm in parallel for each set of arguments
-        p = pool.map(run_saa, saa_args_list)
-        pool.close()
+        # Run the SA algorithm in parallel for each set of arguments using subprocess.Popen
+        for saa_args in saa_args_list:
+            f = open(os.devnull, 'w')
+            p = run_saa(saa_args)
+            processes.append((p, f))
+        
+        # Wait for all processes to finish
+        for p, f in processes:
+            status = p.wait()
+            f.close()
+            if status == 0:
+                print(f"\N{check mark} SAA for {saa_args_list[processes.index((p, f))][3].split('/')[-1]} finished successfully")
+                
+        
         
         print("\N{check mark} Done!")
         
@@ -574,7 +584,7 @@ def run_saa(saa_args: tuple):
             int: The return code of the algorithm
         """
         try:
-            p = subprocess.call(saa_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            p = subprocess.Popen(saa_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except KeyboardInterrupt:
             raise KeyboardInterrupt("MinCompSpin_SimulatedAnnealing interrupted")
         except SystemExit:
