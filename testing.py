@@ -22,13 +22,10 @@ def main():
     )
     test_labels = load_labels("input/data/test-labels-uniform.txt").astype(int)
     
-    resulting_data = pd.DataFrame(
-        # columns=["sample_size", "run", "fit-time", "acc", "avg-prec", "avg-rec", "avg-f1", "prec-0", "prec-1", "prec-2", "prec-3", "prec-4", "prec-5", "prec-6", "prec-7", "prec-8", "prec-9", "rec-0", "rec-1", "rec-2", "rec-3", "rec-4", "rec-5", "rec-6", "rec-7", "rec-8", "rec-9", "f1-0", "f1-1", "f1-2", "f1-3", "f1-4", "f1-5", "f1-6", "f1-7", "f1-8", "f1-9"],
-        # dtype=float
-        )
+    resulting_data = pd.DataFrame()
     
     bootstrap_count = 5
-    sample_sizes = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 0]
+    sample_sizes = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1500, 2000, 2500, 3000, 3500, 4000, 4500, 5000, 0]
     progress_bar = tqdm(total=len(sample_sizes) * bootstrap_count)
     for sample_size in sample_sizes:
         for i in range(bootstrap_count):
@@ -41,7 +38,7 @@ def main():
             # Step 2: Train
             # Time the fitting
             start_time = time.perf_counter()
-            classifier.fit(n_samples=sample_size, max_iter=100000, max_no_improvement=10000)
+            classifier.fit(greedy=True, n_samples=sample_size, max_iter=100_000, max_no_improvement=10_000)
             # classifier.init()
             end_time = time.perf_counter()
         
@@ -102,7 +99,7 @@ def main():
             progress_bar.update(1)
             
     # Save resulting_data to csv
-    resulting_data.to_csv(f"output/data/bootstrap_results_sa_efault.csv", index=False, sep=";")
+    resulting_data.to_csv(f"output/data/bootstrap_results_greedy.csv", index=False, sep=";")
     
 
     

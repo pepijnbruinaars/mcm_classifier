@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 import numpy as np
 
-def plot_confusion_matrix(confusion_matrix, n_categories: int, title="Confusion matrix", cmap="Blues"):
+def plot_confusion_matrix(confusion_matrix, n_categories: int, title="Confusion matrix", cmap="Blues", logScale: bool = False):
     """
     This function prints and plots the confusion matrix.
     
@@ -12,7 +12,10 @@ def plot_confusion_matrix(confusion_matrix, n_categories: int, title="Confusion 
         title (str, optional): Title of the plot. Defaults to "Confusion matrix".
         cmap (str, optional): Color map. Defaults to "Blues".
     """
-    plt.matshow(confusion_matrix, interpolation="nearest", cmap=cmap, norm=LogNorm(vmin=1, vmax=confusion_matrix.max()))
+    if logScale:
+        plt.matshow(confusion_matrix, interpolation="nearest", cmap=cmap, norm=LogNorm(vmin=1, vmax=confusion_matrix.max()))
+    else:
+        plt.matshow(confusion_matrix, interpolation="nearest", cmap=cmap)
     plt.title(title)
     plt.colorbar()
     tick_marks = np.arange(n_categories)

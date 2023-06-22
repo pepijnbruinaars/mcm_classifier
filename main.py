@@ -7,15 +7,13 @@ from src.plot import plot_confusion_matrix, plot_label_prob_diff
 # Customizable environment variables
 n_categories = 10  # Number of categories to be classified
 n_variables = 121  # Number of variables in the dataset
-mcm_filename_format = "train-images-unlabeled-{}_comms.dat"
-data_filename_format = "train-images-unlabeled-{}.dat"
+mcm_filename_format = "train-images-unlabeled-{}_bootstrap_comms.dat"
+data_filename_format = "train-images-unlabeled-{}_bootstrap.dat"
 
 def main():
-    print("{:-^50}".format("  MCM-Classifier  "))
+    print("{:-^50}".format("  MCM-Classifier  ")) 
 
-    test_data = load_data("input/data/test-images-unlabeled-all-uniform.txt").astype(
-        int
-    )
+    test_data = load_data("input/data/test-images-unlabeled-all-uniform.txt").astype(int)
     test_labels = load_labels("input/data/test-labels-uniform.txt").astype(int)
 
     # Step 1: Initialize classifier
@@ -72,7 +70,7 @@ def main():
     print("Number of datapoints with 2 or more categories with probability > 0: {}".format(n_multiple_probs))
 
     plot_label_prob_diff(3, 5, test_labels, probs, predicted_classes)
-    # plt.savefig("OUTPUT/probs_and_correctness.png")
+    plt.savefig("OUTPUT/probs_and_correctness.png")
 
     # Plot confusion matrix
     plt.figure()
